@@ -1,6 +1,17 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
 import { PageHeader } from '@/components/layout/page-header';
 
 export default function AuditLogsPage() {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <div className="space-y-6">
       <PageHeader title="Audit Logs" description="System activity history" />
@@ -16,15 +27,24 @@ export default function AuditLogsPage() {
             </tr>
           </thead>
           <tbody>
-            {Array.from({ length: 10 }).map((_, i) => (
-              <tr key={i} className="border-b">
-                {Array.from({ length: 5 }).map((_, j) => (
-                  <td key={j} className="px-4 py-3">
-                    <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-                  </td>
-                ))}
+            {loading ? (
+              Array.from({ length: 10 }).map((_, i) => (
+                <tr key={i} className="border-b">
+                  {Array.from({ length: 5 }).map((_, j) => (
+                    <td key={j} className="px-4 py-3">
+                      <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={5} className="px-4 py-12 text-center">
+                  <p className="text-sm font-medium text-muted-foreground">No audit logs recorded yet.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Activity logs will appear here once the audit system is configured.</p>
+                </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>

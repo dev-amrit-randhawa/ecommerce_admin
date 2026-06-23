@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { api } from '@/lib/api/client';
@@ -14,23 +15,60 @@ interface Brand {
   productCount: number;
 }
 
+interface BrandForm {
+  name: string;
+  description: string;
+  isActive: boolean;
+}
+
+const EMPTY_FORM: BrandForm = { name: '', description: '', isActive: true };
+
 export default function BrandsPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<BrandForm>(EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchBrands = useCallback(async () => {
+    try {
+      const data = await api.get<{ data: Brand[]; pagination: unknown }>('/brands?limit=50');
+      setBrands(data.data);
+    } catch {
+      toast.error('Failed to load brands');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const data = await api.get<{ data: Brand[]; pagination: unknown }>('/brands?limit=50');
-        setBrands(data.data);
-      } catch (err) {
-        console.error('Failed to load brands:', err);
-      } finally {
-        setLoading(false);
-      }
+    fetchBrands();
+  }, [fetchBrands]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) {
+      toast.error('Brand name is required');
+      return;
     }
-    load();
-  }, []);
+    setSubmitting(true);
+    try {
+      await api.post('/brands', {
+        name: form.name.trim(),
+        description: form.description.trim() || undefined,
+        isActive: form.isActive,
+      });
+      toast.success('Brand created successfully');
+      setForm(EMPTY_FORM);
+      setShowForm(false);
+      setLoading(true);
+      await fetchBrands();
+    } catch {
+      toast.error('Failed to create brand');
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -38,11 +76,59 @@ export default function BrandsPage() {
         title="Brands"
         description="Manage product brands"
         actions={
-          <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-            + Add Brand
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            {showForm ? 'Cancel' : '+ Add Brand'}
           </button>
         }
       />
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="rounded-lg border p-6 space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium">Name</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Brand name"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Description</label>
+              <input
+                type="text"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Optional description"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="brand-active"
+              checked={form.isActive}
+              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+              className="h-4 w-4 rounded border"
+            />
+            <label htmlFor="brand-active" className="text-sm font-medium">Active</label>
+          </div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded-md bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            {submitting ? 'Creating...' : 'Create Brand'}
+          </button>
+        </form>
+      )}
+
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {loading
           ? Array.from({ length: 8 }).map((_, i) => (
