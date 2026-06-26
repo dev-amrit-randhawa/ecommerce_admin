@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { PageHeader } from '@/components/layout/page-header';
@@ -30,6 +30,9 @@ export default function BannersPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<BannerForm>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchBanners = useCallback(async () => {
     try {
@@ -46,10 +49,48 @@ export default function BannersPage() {
     fetchBanners();
   }, [fetchBanners]);
 
+  async function handleImageUpload(file: File) {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Only image files are allowed');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be under 5 MB');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'banners');
+      const result = await api.upload<{ url: string; key: string }>('/uploads/image', formData);
+      setForm((prev) => ({ ...prev, imageUrl: result.url }));
+      toast.success('Image uploaded');
+    } catch {
+      toast.error('Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleImageUpload(file);
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) handleImageUpload(file);
+    e.target.value = '';
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim() || !form.imageUrl.trim()) {
-      toast.error('Title and image URL are required');
+      toast.error('Title and image are required');
       return;
     }
     setSubmitting(true);
@@ -102,16 +143,6 @@ export default function BannersPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Image URL</label>
-              <input
-                type="text"
-                value={form.imageUrl}
-                onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
-                placeholder="https://..."
-              />
-            </div>
-            <div>
               <label className="text-sm font-medium">Link URL</label>
               <input
                 type="text"
@@ -121,19 +152,71 @@ export default function BannersPage() {
                 placeholder="/collections/sale"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium">Position</label>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Banner Image</label>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`mt-1 flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors ${
+                dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'
+              } ${form.imageUrl ? 'pb-3' : ''}`}
+            >
+              {form.imageUrl ? (
+                <div className="w-full space-y-3">
+                  <img
+                    src={form.imageUrl}
+                    alt="Banner preview"
+                    className="h-40 w-full rounded-md object-cover"
+                  />
+                  <p className="text-center text-xs text-muted-foreground">
+                    Click or drop to replace
+                  </p>
+                </div>
+              ) : uploading ? (
+                <div className="flex flex-col items-center gap-2 py-4">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <p className="text-sm text-muted-foreground">Uploading...</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2 py-4">
+                  <svg className="h-10 w-10 text-muted-foreground/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                  </svg>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Drop image here or click to browse
+                  </p>
+                  <p className="text-xs text-muted-foreground/70">
+                    JPEG, PNG, or WebP — max 5 MB
+                  </p>
+                </div>
+              )}
               <input
-                type="number"
-                value={form.position}
-                onChange={(e) => setForm({ ...form, position: e.target.value })}
-                className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif"
+                onChange={handleFileChange}
+                className="hidden"
               />
             </div>
           </div>
+
+          <div className="w-32">
+            <label className="text-sm font-medium">Position</label>
+            <input
+              type="number"
+              value={form.position}
+              onChange={(e) => setForm({ ...form, position: e.target.value })}
+              className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || uploading || !form.imageUrl}
             className="rounded-md bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {submitting ? 'Creating...' : 'Create Banner'}

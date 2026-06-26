@@ -123,6 +123,43 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   return data.data as T;
 }
 
+async function uploadFile<T>(endpoint: string, formData: FormData): Promise<T> {
+  const token = useAuthStore.getState().tokens?.accessToken;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (response.status === 401) {
+    const refreshed = await refreshTokens();
+    if (refreshed) {
+      return uploadFile<T>(endpoint, formData);
+    }
+    clearSession();
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      error: { code: 'UNKNOWN', message: 'Upload failed' },
+    }));
+    throw new ApiError(
+      response.status,
+      error.error?.code || 'UNKNOWN',
+      error.error?.message || 'Upload failed',
+      error.error?.errors,
+    );
+  }
+
+  const data = await response.json();
+  return data.data as T;
+}
+
 export const api = {
   get: <T>(endpoint: string, options?: RequestOptions) =>
     request<T>(endpoint, { ...options, method: 'GET' }),
@@ -135,6 +172,9 @@ export const api = {
 
   delete: <T>(endpoint: string, options?: RequestOptions) =>
     request<T>(endpoint, { ...options, method: 'DELETE' }),
+
+  upload: <T>(endpoint: string, formData: FormData) =>
+    uploadFile<T>(endpoint, formData),
 };
 
 export { ApiError };
