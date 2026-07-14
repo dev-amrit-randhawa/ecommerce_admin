@@ -26,12 +26,14 @@ export default function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'in' | 'low' | 'out'>('all');
 
   useEffect(() => {
     async function load() {
       try {
         const [inventoryData, summaryData] = await Promise.all([
-          api.get<{ data: InventoryItem[]; pagination: unknown }>('/inventory?limit=30'),
+          api.get<{ data: InventoryItem[]; pagination: unknown }>('/inventory?limit=100'),
           api.get<Summary>('/inventory/summary'),
         ]);
         setItems(inventoryData.data);
@@ -44,6 +46,19 @@ export default function InventoryPage() {
     }
     load();
   }, []);
+
+  const statusOf = (item: InventoryItem): 'in' | 'low' | 'out' =>
+    item.availableStock === 0 ? 'out' : item.isLowStock ? 'low' : 'in';
+
+  const query = search.trim().toLowerCase();
+  const filtered = items.filter((item) => {
+    if (statusFilter !== 'all' && statusOf(item) !== statusFilter) return false;
+    if (!query) return true;
+    const variant = item.variantId?.attributes?.map((a) => a.value).join(' ') ?? '';
+    return [item.sku, item.productId?.name, variant]
+      .filter(Boolean)
+      .some((field) => field!.toLowerCase().includes(query));
+  });
 
   return (
     <div className="space-y-6">
@@ -77,6 +92,39 @@ export default function InventoryPage() {
         </span>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by product, SKU, or variant…"
+          className="w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary sm:max-w-xs"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as 'all' | 'in' | 'low' | 'out')}
+          className="rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+        >
+          <option value="all">All statuses</option>
+          <option value="in">In stock</option>
+          <option value="low">Low stock</option>
+          <option value="out">Out of stock</option>
+        </select>
+        {(search || statusFilter !== 'all') && (
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span>{filtered.length} of {items.length}</span>
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setStatusFilter('all'); }}
+              className="rounded-md border px-3 py-1.5 font-medium transition-colors hover:bg-muted"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="rounded-lg border bg-card">
         <table className="w-full text-sm">
           <thead>
@@ -101,7 +149,15 @@ export default function InventoryPage() {
                     ))}
                   </tr>
                 ))
-              : items.map((item) => {
+              : filtered.length === 0
+              ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-muted-foreground">
+                      {items.length === 0 ? 'No inventory items yet.' : 'No items match your filters.'}
+                    </td>
+                  </tr>
+                )
+              : filtered.map((item) => {
                   const outOfStock = item.availableStock === 0;
                   const lowStock = !outOfStock && item.isLowStock;
                   return (

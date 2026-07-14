@@ -9,6 +9,11 @@ import { api } from '@/lib/api/client';
 interface Banner {
   _id: string;
   title: string;
+  subtitle?: string;
+  description?: string;
+  ctaText?: string;
+  secondaryCtaText?: string;
+  secondaryCtaLink?: string;
   image: { desktop: string; mobile: string };
   link: string;
   position: string;
@@ -20,6 +25,11 @@ interface Banner {
 
 interface BannerForm {
   title: string;
+  subtitle: string;
+  description: string;
+  ctaText: string;
+  secondaryCtaText: string;
+  secondaryCtaLink: string;
   desktopImage: string;
   mobileImage: string;
   link: string;
@@ -35,6 +45,11 @@ const STATUSES = ['active', 'inactive', 'scheduled'] as const;
 
 const EMPTY_FORM: BannerForm = {
   title: '',
+  subtitle: '',
+  description: '',
+  ctaText: '',
+  secondaryCtaText: '',
+  secondaryCtaLink: '',
   desktopImage: '',
   mobileImage: '',
   link: '',
@@ -105,6 +120,11 @@ export default function BannersPage() {
     setEditingId(banner._id);
     setForm({
       title: banner.title,
+      subtitle: banner.subtitle || '',
+      description: banner.description || '',
+      ctaText: banner.ctaText || '',
+      secondaryCtaText: banner.secondaryCtaText || '',
+      secondaryCtaLink: banner.secondaryCtaLink || '',
       desktopImage: banner.image.desktop,
       mobileImage: banner.image.mobile,
       link: banner.link,
@@ -148,6 +168,11 @@ export default function BannersPage() {
     try {
       const payload = {
         title: form.title.trim(),
+        subtitle: form.subtitle.trim() || undefined,
+        description: form.description.trim() || undefined,
+        ctaText: form.ctaText.trim() || undefined,
+        secondaryCtaText: form.secondaryCtaText.trim() || undefined,
+        secondaryCtaLink: form.secondaryCtaLink.trim() || undefined,
         image: {
           desktop: form.desktopImage,
           mobile: form.mobileImage,
@@ -277,6 +302,62 @@ export default function BannersPage() {
                 onChange={(e) => setForm({ ...form, link: e.target.value })}
                 className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
                 placeholder="/collections/summer-sale"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Subtitle / Tag</label>
+            <input
+              type="text"
+              value={form.subtitle}
+              onChange={(e) => setForm({ ...form, subtitle: e.target.value })}
+              className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+              placeholder="THE NEW ARRIVALS"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Small eyebrow/tag line shown above the title.</p>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Description</label>
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              rows={2}
+              className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Supporting copy shown under the title."
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <label className="text-sm font-medium">CTA Button Text</label>
+              <input
+                type="text"
+                value={form.ctaText}
+                onChange={(e) => setForm({ ...form, ctaText: e.target.value })}
+                className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Shop New Arrivals"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Secondary CTA Text</label>
+              <input
+                type="text"
+                value={form.secondaryCtaText}
+                onChange={(e) => setForm({ ...form, secondaryCtaText: e.target.value })}
+                className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Our Story"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Secondary CTA Link</label>
+              <input
+                type="text"
+                value={form.secondaryCtaLink}
+                onChange={(e) => setForm({ ...form, secondaryCtaLink: e.target.value })}
+                className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+                placeholder="/brands"
               />
             </div>
           </div>
