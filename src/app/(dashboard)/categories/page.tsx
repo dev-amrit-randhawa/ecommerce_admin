@@ -18,18 +18,31 @@ interface Category {
 
 interface CategoryForm {
   name: string;
+  slug: string;
   parentId: string;
   isActive: boolean;
 }
 
-const EMPTY_FORM: CategoryForm = { name: '', parentId: '', isActive: true };
+const EMPTY_FORM: CategoryForm = { name: '', slug: '', parentId: '', isActive: true };
+
+// Matches the API's slug rule: lowercase alphanumeric segments joined by hyphens.
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
 
 function flattenCategories(cats: Category[], prefix: string = ''): { id: string; label: string }[] {
   const result: { id: string; label: string }[] = [];
   for (const cat of cats) {
     result.push({ id: cat._id, label: prefix + cat.name });
     if (cat.children?.length) {
-      result.push(...flattenCategories(cat.children, prefix + '  '));
+      // Non-breaking spaces so nesting stays visible inside <option> elements.
+      result.push(...flattenCategories(cat.children, prefix + '    '));
     }
   }
   return result;
@@ -40,6 +53,7 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<CategoryForm>(EMPTY_FORM);
+  const [slugTouched, setSlugTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const fetchCategories = useCallback(async () => {
@@ -59,24 +73,36 @@ export default function CategoriesPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) {
+    const name = form.name.trim();
+    const slug = form.slug.trim() || slugify(name);
+    if (!name) {
       toast.error('Category name is required');
+      return;
+    }
+    if (!SLUG_PATTERN.test(slug)) {
+      toast.error('Slug must be lowercase letters, numbers, and hyphens (e.g. "summer-shoes")');
       return;
     }
     setSubmitting(true);
     try {
       await api.post('/categories', {
-        name: form.name.trim(),
+        name,
+        slug,
         parentId: form.parentId || undefined,
         isActive: form.isActive,
       });
       toast.success('Category created successfully');
       setForm(EMPTY_FORM);
+      setSlugTouched(false);
       setShowForm(false);
       setLoading(true);
       await fetchCategories();
-    } catch {
-      toast.error('Failed to create category');
+    } catch (err) {
+      // Surface the API's real reason (e.g. duplicate slug, invalid parent)
+      // instead of a generic message.
+      const apiErr = err as { message?: string; errors?: Record<string, string[]> };
+      const fieldErrors = apiErr.errors ? Object.values(apiErr.errors).flat().join(', ') : '';
+      toast.error(fieldErrors || apiErr.message || 'Failed to create category');
     } finally {
       setSubmitting(false);
     }
@@ -123,10 +149,30 @@ export default function CategoriesPage() {
               <input
                 type="text"
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  // Keep the slug in sync with the name until the user edits it manually.
+                  setForm((f) => ({ ...f, name, slug: slugTouched ? f.slug : slugify(name) }));
+                }}
                 className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
                 placeholder="Category name"
               />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Slug</label>
+              <input
+                type="text"
+                value={form.slug}
+                onChange={(e) => {
+                  setSlugTouched(true);
+                  setForm({ ...form, slug: e.target.value });
+                }}
+                className="mt-1 w-full rounded-md border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
+                placeholder="auto-generated-from-name"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                URL identifier. Auto-filled from the name; lowercase letters, numbers, and hyphens.
+              </p>
             </div>
             <div>
               <label className="text-sm font-medium">Parent Category</label>
